@@ -24,6 +24,7 @@ import (
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
+	"github.com/docker/go-units"
 	"github.com/google/uuid"
 	"github.com/magiconair/properties"
 	"github.com/moby/term"
@@ -360,8 +361,8 @@ func (c *DockerContainer) CopyFileFromContainer(ctx context.Context, filePath st
 	}
 	tarReader := tar.NewReader(r)
 
-	//if we got here we have exactly one file in the TAR-stream
-	//so we advance the index by one so the next call to Read will start reading it
+	// if we got here we have exactly one file in the TAR-stream
+	// so we advance the index by one so the next call to Read will start reading it
 	_, err = tarReader.Next()
 	if err != nil {
 		return nil, err
@@ -746,6 +747,13 @@ func (p *DockerProvider) CreateContainer(ctx context.Context, req ContainerReque
 	// prepare mounts
 	mounts := mapToDockerMounts(req.Mounts)
 
+	resources := container.Resources{
+		Ulimits: []*units.Ulimit{
+			{Name: "memlock", Soft: -1, Hard: -1},
+			{Name: "nofile", Soft: 65536, Hard: 65536},
+		},
+	}
+
 	hostConfig := &container.HostConfig{
 		PortBindings: exposedPortMap,
 		Mounts:       mounts,
@@ -753,6 +761,9 @@ func (p *DockerProvider) CreateContainer(ctx context.Context, req ContainerReque
 		AutoRemove:   req.AutoRemove,
 		Privileged:   req.Privileged,
 		NetworkMode:  req.NetworkMode,
+
+		CapAdd:    []string{"IPC_LOCK"},
+		Resources: resources,
 	}
 
 	endpointConfigs := map[string]*network.EndpointSettings{}
